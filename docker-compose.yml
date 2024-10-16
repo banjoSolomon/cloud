@@ -19,20 +19,31 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: Solomon11
       MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info
-    depends_on:
-      - postgres
     ports:
-      - "8081-8083:8080"
+      - "8081:8080"  # Host port mapped to container port
+
     deploy:
-      replicas: 3
+      replicas: 1
       resources:
         limits:
-          memory: 128M
+          memory: 128M  # Adjust memory limit if needed
+      restart_policy:
+        condition: on-failure
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]  # Correct port for your Spring Boot app
       interval: 1m30s
       timeout: 10s
       retries: 3
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "8080:8080"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
 
 volumes:
   postgres_data: {}

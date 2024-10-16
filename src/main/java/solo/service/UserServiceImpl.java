@@ -2,12 +2,15 @@ package solo.service;
 
 
 import org.springframework.stereotype.Service;
-import solo.dto.LoginRequest;
+
 import solo.dto.RegisterUserRequest;
 import solo.models.User;
 import solo.repository.UserRepository;
-import solo.response.LoginResponse;
+
 import solo.response.RegisterUserResponse;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class UserServiceImpl implements UserService{
@@ -30,36 +33,21 @@ public class UserServiceImpl implements UserService{
         return response;
     }
 
-    @Override
-    public LoginResponse login(LoginRequest loginRequest) {
-        User user = findUserById(loginRequest.getUsername());
-        if (!user.getPassword().equals(loginRequest.getPassword())) {
-            throw new IllegalArgumentException("Invalid Credentials");
-        }
-        LoginResponse loginResponse = new LoginResponse();
-        loginResponse.setMessage("User logged in successfully");
-        return loginResponse;
-    }
 
-    private User findUserById(String username) {
-        User user = userRepository.findByUsername(username);
-        if (user == null) throw new IllegalArgumentException("Invalid Credentials");
-        return user;
-    }
-
-    public static int Fibonacci(int number) {
+    public static List<Integer> generateFibonacci(int number) {
+        List<Integer> fibonacciSeries = new ArrayList<>();
         int num1 = 0;
         int num2 = 1;
-        System.out.print("Fibonacci Series: " + num1 + " " + num2);
+        fibonacciSeries.add(num1);
+        fibonacciSeries.add(num2);
 
-        for (int count = 1; count < number; count++) {
+        for (int count = 2; count < number; count++) {
             int nextNumber = num1 + num2;
-            System.out.print(" " + nextNumber);
+            fibonacciSeries.add(nextNumber);
             num1 = num2;
             num2 = nextNumber;
         }
-        return num2;
-
+        return fibonacciSeries;
     }
 
 }

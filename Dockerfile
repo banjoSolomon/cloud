@@ -4,7 +4,7 @@ RUN mvn -B clean package -DskipTests
 
 FROM openjdk:17
 COPY --from=build target/*.jar cloud.jar
-EXPOSE 9090
+EXPOSE 8080
 
 # Removed the problematic backtick
-ENTRYPOINT ["java", "-jar", "-Dserver.port=9090", "cloud.jar"]
+ENTRYPOINT ["java", "-jar", "-Dserver.port=8080", "cloud.jar"]
