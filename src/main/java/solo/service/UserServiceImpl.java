@@ -47,6 +47,19 @@ public class UserServiceImpl implements UserService{
         return user;
     }
 
+    public static int Fibonacci(int number) {
+        int num1 = 0;
+        int num2 = 1;
+        System.out.print("Fibonacci Series: " + num1 + " " + num2);
 
+        for (int count = 1; count < number; count++) {
+            int nextNumber = num1 + num2;
+            System.out.print(" " + nextNumber);
+            num1 = num2;
+            num2 = nextNumber;
+        }
+        return num2;
+
+    }
 
 }
