@@ -40,6 +40,4 @@ jobs:
       - name: Push Docker image to Docker Hub
         run: docker push solomon11/cloud:latest
 
-      - name: Run Docker container
-        run: |
-          docker run --memory="128m" solomon11/cloud:latest
+
