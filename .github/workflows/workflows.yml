@@ -14,10 +14,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Step to set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       # Step to log in to Docker Hub
       - name: Log in to Docker Hub
         env:
@@ -38,7 +34,7 @@ jobs:
         id: create_instance
         run: |
           INSTANCE_NAME="my-ec2-instance"
-          TAG_NAME="Devops
+          TAG_NAME="DevOps"  # Specify your desired tag name
           
           # Create EC2 instance with a tag (modify according to your AWS CLI setup)
           INSTANCE_ID=$(aws ec2 run-instances \
