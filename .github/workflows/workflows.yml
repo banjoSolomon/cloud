@@ -1,111 +1,44 @@
-name: Deploy to EC2
+name: Deploy Dockerhub
 
 on:
   push:
     branches:
-      - main
+      - in-dev
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # Step to check out the code
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Step to set up AWS CLI
-      - name: Set up AWS CLI
-        uses: aws-actions/configure-aws-credentials@v1
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: your-aws-region  # e.g., us-east-1
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
 
-      # Step to log in to Docker Hub
-      - name: Log in to Docker Hub
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+      - name: Restore Maven Package
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('/*.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
 
-      # Step to build and push the Docker image to Docker Hub
-      - name: Build and push Docker image
-        env:
-          DOCKER_IMAGE: solomon11/cloud  # Specify your Docker Hub image name
-        run: |
-          docker build -t $DOCKER_IMAGE:latest .
-          docker push $DOCKER_IMAGE:latest
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step to create EC2 Instance
-      - name: Create EC2 Instance
-        id: create_instance
-        run: |
-          INSTANCE_NAME="my-ec2-instance"
-          TAG_NAME="DevOps"  # Specify your desired tag name
-          
-          # Create EC2 instance with a tag (modify according to your AWS CLI setup)
-          INSTANCE_ID=$(aws ec2 run-instances \
-            --image-id ami-12345678 \  # Replace with your desired AMI ID
-            --count 1 \
-            --instance-type t2.micro \
-            --key-name your-key-name \  # Replace with your key name
-            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${INSTANCE_NAME}}, {Key=Environment,Value=${TAG_NAME}}]" \
-            --query 'Instances[0].InstanceId' \
-            --output text)
+      - name: Build Docker image
+        run: docker build -t solomon11/cloud:latest .
 
-          echo "Created instance with ID: $INSTANCE_ID"
+      - name: Push Docker image to Docker Hub
+        run: docker push solomon11/cloud:latest
 
-          # Get the public IP of the new instance
-          INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "INSTANCE_IP=$INSTANCE_IP" >> $GITHUB_ENV
 
-      # Step to run PostgreSQL container on EC2
-      - name: Run PostgreSQL container on EC2
-        env:
-          INSTANCE_IP: ${{ env.INSTANCE_IP }}
-          EC2_KEY: ${{ secrets.EC2_KEY }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}  # Database username
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Database password
-          DB_NAME: cloud_db  # Specify the name of the new database
-        run: |
-          echo "Running PostgreSQL container on EC2..."
-          ssh -o StrictHostKeyChecking=no -i <(echo "$EC2_KEY") ec2-user@$INSTANCE_IP << 'EOF'
-            # Pull PostgreSQL image
-            docker pull postgres:latest
-          
-            # Run PostgreSQL container
-            docker run -d --name postgres_container \
-              -e POSTGRES_USER=${DB_USERNAME} \
-              -e POSTGRES_PASSWORD=${DB_PASSWORD} \
-              -e POSTGRES_DB=${DB_NAME} \
-              -p 5432:5432 \
-              --memory="128m" \
-              postgres:latest
-          EOF
 
-      # Step to run application container on EC2
-      - name: Run application container on EC2
-        env:
-          INSTANCE_IP: ${{ env.INSTANCE_IP }}
-          EC2_KEY: ${{ secrets.EC2_KEY }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}  # Database username
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}  # Database password
-          DB_NAME: cloud_db
-        run: |
-          echo "Running application container on EC2..."
-          ssh -o StrictHostKeyChecking=no -i <(echo "$EC2_KEY") ec2-user@$INSTANCE_IP << 'EOF'
-            # Load the application Docker image
-            docker pull solomon11/cloud:latest
-          
-            # Remove the existing application container if it exists
-            docker rm -f my_app_container || true
-          
-            # Run the application container, linking to PostgreSQL
-            docker run -d --name my_app_container \
-              --link postgres_container:postgres \
-              -e DB_URL=postgres://$DB_USERNAME:$DB_PASSWORD@postgres:5432/$DB_NAME \
-              -p 80:80 \
-              --memory="128m" \
-              solomon11/cloud:latest
-          EOF
