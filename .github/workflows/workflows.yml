@@ -70,6 +70,12 @@ jobs:
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
           echo "EC2 instance $INSTANCE_ID is now running."
 
+      - name: Wait for EC2 instance status to be OK
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
+          echo "EC2 instance $INSTANCE_ID is now fully initialized and ready for SSH."
+
       - name: Create cloud.pem file
         run: |
           echo "${{ secrets.EC2_KEY }}" > cloud.pem
@@ -79,6 +85,7 @@ jobs:
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "Attempting SSH connection to $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
       - name: Create Docker network
