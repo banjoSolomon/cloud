@@ -60,6 +60,11 @@ jobs:
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
           echo "EC2 instance $INSTANCE_ID is now running."
 
+      - name: Create cloud.pem file
+        run: |
+          echo "${{ secrets.EC2_KEY }}" > cloud.pem
+          chmod 600 cloud.pem
+
       - name: Install Docker on EC2 instance
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
@@ -76,10 +81,10 @@ jobs:
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} -p 5432:5432 postgres"
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=${{ secrets.DB_USERNAME }} -e POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }} -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} -p 5432:5432 postgres"
 
       - name: Run application container on EC2
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i your-key.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/${{ secrets.POSTGRES_DB }} -e SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }} -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/${{ secrets.POSTGRES_DB }} -e SPRING_DATASOURCE_USERNAME=${{ secrets.POSTGRES_USER }} -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
