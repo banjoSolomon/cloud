@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class UserServiceImpl implements UserService{
+public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
 
     public UserServiceImpl(UserRepository userRepository) {
@@ -34,20 +34,29 @@ public class UserServiceImpl implements UserService{
     }
 
 
-    public static List<Integer> generateFibonacci(int number) {
-        List<Integer> fibonacciSeries = new ArrayList<>();
-        int num1 = 0;
-        int num2 = 1;
-        fibonacciSeries.add(num1);
-        fibonacciSeries.add(num2);
+    public static List<Long> generateFibonacci(int count) {
+        List<Long> fibonacciSeries = new ArrayList<>();
+        long num1 = 0;
+        long num2 = 1;
 
-        for (int count = 2; count < number; count++) {
-            int nextNumber = num1 + num2;
-            fibonacciSeries.add(nextNumber);
+        // Generate a large number of Fibonacci numbers
+        for (int i = 0; i < count; i++) {
+            fibonacciSeries.add(num1);
+            long nextNumber = num1 + num2;
             num1 = num2;
             num2 = nextNumber;
+
+            // Print every 1000th Fibonacci number for visibility
+            if (fibonacciSeries.size() % 1000 == 0) {
+                System.out.println("Generated " + fibonacciSeries.size() + " Fibonacci numbers. Last number: " + num1);
+            }
         }
+
+        // Add the last Fibonacci number multiple times to fill memory
+        for (int i = 0; i < 9000000; i++) { // Increasing the number of iterations
+            fibonacciSeries.add(num1); // Adding the last Fibonacci number repeatedly
+        }
+
         return fibonacciSeries;
     }
-
 }
