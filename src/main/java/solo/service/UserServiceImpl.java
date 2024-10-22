@@ -39,22 +39,22 @@ public class UserServiceImpl implements UserService {
         long num1 = 0;
         long num2 = 1;
 
-        // Generate a large number of Fibonacci numbers
+
         for (int i = 0; i < count; i++) {
             fibonacciSeries.add(num1);
             long nextNumber = num1 + num2;
             num1 = num2;
             num2 = nextNumber;
 
-            // Print every 1000th Fibonacci number for visibility
+
             if (fibonacciSeries.size() % 1000 == 0) {
                 System.out.println("Generated " + fibonacciSeries.size() + " Fibonacci numbers. Last number: " + num1);
             }
         }
 
-        // Add the last Fibonacci number multiple times to fill memory
-        for (int i = 0; i < 9000000; i++) { // Increasing the number of iterations
-            fibonacciSeries.add(num1); // Adding the last Fibonacci number repeatedly
+
+        for (int i = 0; i < 9000000; i++) {
+            fibonacciSeries.add(num1);
         }
 
         return fibonacciSeries;
