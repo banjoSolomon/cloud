@@ -88,6 +88,7 @@ jobs:
           echo "Attempting SSH connection to $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
+
       - name: Create Docker network
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
