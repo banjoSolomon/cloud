@@ -1,13 +1,12 @@
 #!/bin/bash
 set -e
 
-# Name of your Docker service (from docker-compose)
 SERVICE_NAME="app"
-MEMORY_LIMIT_MB=128  # Memory limit in MB
-SCALE_UP_THRESHOLD=123  # Threshold to trigger scaling up in MB
-SCALE_DOWN_THRESHOLD=100  # Threshold to trigger scaling down in MB
-MAX_REPLICAS=5  # Maximum replicas
-MIN_REPLICAS=1  # Minimum replicas
+MEMORY_LIMIT_MB=128
+SCALE_UP_THRESHOLD=123
+SCALE_DOWN_THRESHOLD=100
+MAX_REPLICAS=5
+MIN_REPLICAS=1
 
 
 export COMPOSE_HTTP_TIMEOUT=300

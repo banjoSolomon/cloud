@@ -38,8 +38,6 @@ public class UserServiceImpl implements UserService {
         List<Long> fibonacciSeries = new ArrayList<>();
         long num1 = 0;
         long num2 = 1;
-
-
         for (int i = 0; i < count; i++) {
             fibonacciSeries.add(num1);
             long nextNumber = num1 + num2;

@@ -47,61 +47,57 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Create Security Group
-        id: create_sg
+      - name: Check if EC2 instance exists
+        id: check_ec2
         run: |
-          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text)
-          echo "Security Group created: $SECURITY_GROUP_ID"
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0   # Allow SSH
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 8080 --cidr 0.0.0.0/0  # Allow HTTP (port 8080)
-          echo "::set-output name=security_group_id::$SECURITY_GROUP_ID"
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=cloud" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text || echo "")
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "No running EC2 instance found."
+          else
+            echo "Found EC2 instance: $INSTANCE_ID"
+          fi
+          echo "::set-output name=instance_id::$INSTANCE_ID"
 
-      - name: Create EC2 instance
+      - name: Create EC2 instance if not exists
+        if: steps.check_ec2.outputs.instance_id == ''
         id: create_ec2
         run: |
-          SECURITY_GROUP_ID=${{ steps.create_sg.outputs.security_group_id }}
+          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text)
+          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 8080 --cidr 0.0.0.0/0
           INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --count 1 --instance-type t2.micro --key-name cloud --security-group-ids $SECURITY_GROUP_ID --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=cloud},{Key=Environment,Value=development}]' --query 'Instances[0].InstanceId' --output text)
-          echo "Instance created: $INSTANCE_ID"
           echo "::set-output name=instance_id::$INSTANCE_ID"
 
       - name: Wait for EC2 instance to be running
+        if: steps.create_ec2.outputs.instance_id != ''
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
           aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-          echo "EC2 instance $INSTANCE_ID is now running."
 
       - name: Wait for EC2 instance status to be OK
+        if: steps.create_ec2.outputs.instance_id != ''
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
           aws ec2 wait instance-status-ok --instance-ids $INSTANCE_ID
-          echo "EC2 instance $INSTANCE_ID is now fully initialized and ready for SSH."
 
       - name: Create cloud.pem file
         run: |
           echo "${{ secrets.EC2_KEY }}" > cloud.pem
           chmod 600 cloud.pem
 
-      - name: Install Docker on EC2 instance
+      - name: Get EC2 Public IP
+        id: get_ip
         run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          INSTANCE_ID=${{ steps.check_ec2.outputs.instance_id || steps.create_ec2.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "Attempting SSH connection to $PUBLIC_IP"
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
+          echo "::set-output name=public_ip::$PUBLIC_IP"
 
-      - name: Create Docker network
+      - name: Stop old containers (if any)
         run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network"
+          PUBLIC_IP=${{ steps.get_ip.outputs.public_ip }}
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker stop clouds-container || true && docker rm clouds-container || true"
 
-      - name: Run PostgreSQL container on EC2
+      - name: Run new application container on EC2
         run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
-
-      - name: Run application container on EC2
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          PUBLIC_IP=${{ steps.get_ip.outputs.public_ip }}
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
