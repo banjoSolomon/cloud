@@ -102,7 +102,12 @@ jobs:
 
       - name: Deploy updated application container
         run: |
-          INSTANCE_ID=${{ steps.check_instance.outputs.instance_id != '' && steps.create_ec2.outputs.instance_id != '' ? steps.create_ec2.outputs.instance_id : steps.check_instance.outputs.instance_id }}
+          INSTANCE_ID=""
+          if [ "${{ steps.create_ec2.outputs.instance_id }}" != "" ]; then
+            INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          else
+            INSTANCE_ID=${{ steps.check_instance.outputs.instance_id }}
+          fi
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker rm -f clouds-container || true"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
