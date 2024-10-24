@@ -43,8 +43,6 @@ public class UserServiceImpl implements UserService {
             long nextNumber = num1 + num2;
             num1 = num2;
             num2 = nextNumber;
-
-
             if (fibonacciSeries.size() % 1000 == 0) {
                 System.out.println("Generated " + fibonacciSeries.size() + " Fibonacci numbers. Last number: " + num1);
             }
