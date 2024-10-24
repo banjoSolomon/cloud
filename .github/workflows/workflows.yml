@@ -50,8 +50,8 @@ jobs:
       - name: Check if EC2 instance exists
         id: check_ec2
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=cloud" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text || echo "")
-          if [ -z "$INSTANCE_ID" ]; then
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=cloud" "Name=instance-state-name,Values=running" --query 'Reservations[0].Instances[0].InstanceId' --output text)
+          if [ "$INSTANCE_ID" == "None" ] || [ -z "$INSTANCE_ID" ]; then
             echo "No running EC2 instance found."
           else
             echo "Found EC2 instance: $INSTANCE_ID"
@@ -89,7 +89,7 @@ jobs:
         id: get_ip
         run: |
           INSTANCE_ID=${{ steps.check_ec2.outputs.instance_id != '' && steps.check_ec2.outputs.instance_id || steps.create_ec2.outputs.instance_id }}
-          if [ "$INSTANCE_ID" == "None" ] || [ -z "$INSTANCE_ID" ]; then
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
             echo "No valid instance ID found, please check EC2 instance creation step."
             exit 1
           fi
