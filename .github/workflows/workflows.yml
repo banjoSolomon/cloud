@@ -82,6 +82,7 @@ jobs:
 
       - name: Create cloud.pem file
         run: |
+          
           echo "${{ secrets.EC2_KEY }}" > cloud.pem
           chmod 600 cloud.pem
 
