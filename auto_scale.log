@@ -256140,3 +256140,52 @@ Get "http://%2Fvar%2Frun%2Fdocker.sock/v1.47/containers/json": dial unix /var/ru
 [Sat Nov  2 13:31:20 WAT 2024] Invalid memory usage: . Skipping this check.
 [Sat Nov  2 13:31:22 WAT 2024] Invalid memory usage: . Skipping this check.
 [Sat Nov  2 13:31:22 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:31:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:23 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:29 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:29 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:29 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:29 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:30 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:39 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:39 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:40 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:40 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:46 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:48 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:52 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:57 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:38:56 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:09 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:26 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:33 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:34 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:46 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:50 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:40:03 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:39:50 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:40:24 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:40:49 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:22 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:28 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:34 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:39 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:43 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:45 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:46 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:49 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:48 WAT 2024] Invalid memory usage: . Skipping this check.
+[Sat Nov  2 13:41:48 WAT 2024] Invalid memory usage: . Skipping this check.
+An HTTP request took too long to complete. Retry with --verbose to obtain debug information.
+If you encounter this issue regularly because of slow network conditions, consider setting COMPOSE_HTTP_TIMEOUT to a higher value (current value: 300).
+An HTTP request took too long to complete. Retry with --verbose to obtain debug information.
+If you encounter this issue regularly because of slow network conditions, consider setting COMPOSE_HTTP_TIMEOUT to a higher value (current value: 300).
