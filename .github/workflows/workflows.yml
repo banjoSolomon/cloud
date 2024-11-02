@@ -84,12 +84,14 @@ jobs:
         if: steps.create_ec2.outputs.instance_id != ''
         run: |
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids ${{ steps.create_ec2.outputs.instance_id }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "Installing Docker on EC2 instance with IP: $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
       - name: Deploy PostgreSQL container (if first time)
         if: steps.create_ec2.outputs.instance_id != ''
         run: |
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids ${{ steps.create_ec2.outputs.instance_id }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "Deploying PostgreSQL on EC2 instance with IP: $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
 
@@ -101,6 +103,10 @@ jobs:
             exit 1
           fi
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          if [ "$PUBLIC_IP" = "None" ]; then
+            echo "Error: PUBLIC_IP not available. Exiting."
+            exit 1
+          fi
           echo "Deploying to EC2 instance with IP: $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker rm -f clouds-container || true"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
