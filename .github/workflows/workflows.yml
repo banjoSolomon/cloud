@@ -54,11 +54,16 @@ jobs:
           if [ "$INSTANCE_ID" = "None" ]; then
             echo "::set-output name=instance_exists::false"
           else
-            echo "::set-output name=instance_exists::true"
-            echo "::set-output name=instance_id::$INSTANCE_ID"
+            INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text)
+            if [ "$INSTANCE_STATE" = "terminated" ]; then
+              echo "::set-output name=instance_exists::false"
+            else
+              echo "::set-output name=instance_exists::true"
+              echo "::set-output name=instance_id::$INSTANCE_ID"
+            fi
           fi
 
-      - name: Create EC2 instance (if not exists)
+      - name: Create EC2 instance (if not exists or terminated)
         if: steps.check_instance.outputs.instance_exists == 'false'
         id: create_ec2
         run: |
