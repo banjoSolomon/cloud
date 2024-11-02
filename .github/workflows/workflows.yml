@@ -86,6 +86,14 @@ jobs:
           echo "${{ secrets.EC2_KEY }}" > cloud.pem
           chmod 600 cloud.pem
 
+      - name: Debug EC2 instance
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text)
+          echo "Public IP: $PUBLIC_IP"
+          echo "Instance State: $INSTANCE_STATE"
+
       - name: Install Docker on EC2
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
