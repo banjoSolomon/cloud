@@ -65,15 +65,19 @@ jobs:
         id: create_ec2
         run: |
           SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text)
+          echo "Security Group created: $SECURITY_GROUP_ID"
           aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0   # Allow SSH
           aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 8080 --cidr 0.0.0.0/0  # Allow HTTP (port 8080)
           INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --count 1 --instance-type t2.micro --key-name cloud --security-group-ids $SECURITY_GROUP_ID --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=cloud},{Key=Environment,Value=development}]' --query 'Instances[0].InstanceId' --output text)
+          echo "Instance created: $INSTANCE_ID"
           echo "::set-output name=instance_id::$INSTANCE_ID"
 
       - name: Wait for EC2 instance to be running
         if: steps.create_ec2.outputs.instance_id != ''
         run: |
-          aws ec2 wait instance-running --instance-ids ${{ steps.create_ec2.outputs.instance_id }}
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+          echo "EC2 instance $INSTANCE_ID is now running."
 
       - name: Create cloud.pem file
         run: |
@@ -83,53 +87,28 @@ jobs:
       - name: Install Docker on EC2 (if new instance)
         if: steps.create_ec2.outputs.instance_id != ''
         run: |
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids ${{ steps.create_ec2.outputs.instance_id }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "Installing Docker on EC2 instance with IP: $PUBLIC_IP"
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          echo "Attempting SSH connection to $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
       - name: Deploy PostgreSQL container (if first time)
         if: steps.create_ec2.outputs.instance_id != ''
         run: |
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids ${{ steps.create_ec2.outputs.instance_id }} --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "Deploying PostgreSQL on EC2 instance with IP: $PUBLIC_IP"
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
 
-      - name: Retrieve EC2 instance public IP with retry
-        id: get_public_ip
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          if [ -z "$INSTANCE_ID" ]; then
-            echo "Error: INSTANCE_ID is not set"
-            exit 1
-          fi
-
-          # Retry loop to wait for PUBLIC_IP assignment
-          MAX_RETRIES=10
-          RETRY_COUNT=0
-          PUBLIC_IP=""
-
-          while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-            PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-            if [ "$PUBLIC_IP" != "None" ]; then
-              echo "Public IP retrieved: $PUBLIC_IP"
-              break
-            fi
-            echo "Public IP not available yet. Retrying in 10 seconds..."
-            sleep 10
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-          done
-
-          if [ "$PUBLIC_IP" = "None" ]; then
-            echo "Error: PUBLIC_IP not available after retries. Exiting."
-            exit 1
-          fi
-
-          echo "::set-output name=public_ip::$PUBLIC_IP"
-
       - name: Deploy updated application container
+
         run: |
-          PUBLIC_IP=${{ steps.get_public_ip.outputs.public_ip }}
-          echo "Deploying to EC2 instance with IP: $PUBLIC_IP"
+          INSTANCE_ID=""
+          if [ "${{ steps.create_ec2.outputs.instance_id }}" != "" ]; then
+            INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          else
+            INSTANCE_ID=${{ steps.check_instance.outputs.instance_id }}
+          fi
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker rm -f clouds-container || true"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
