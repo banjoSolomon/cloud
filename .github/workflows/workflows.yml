@@ -110,14 +110,19 @@ jobs:
             echo "::set-output name=container_exists::false"
           fi
 
-      - name: Update or create PostgreSQL container
+      - name: Stop and remove PostgreSQL container if exists
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           if [ "${{ steps.check_postgres.outputs.container_exists }}" == "true" ]; then
-            echo "Updating existing PostgreSQL container..."
+            echo "Stopping and removing existing PostgreSQL container..."
             ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker stop postgres-container && sudo docker rm postgres-container"
           fi
+
+      - name: Create PostgreSQL container
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           echo "Creating PostgreSQL container..."
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
 
