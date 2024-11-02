@@ -71,7 +71,6 @@ jobs:
           echo "Security Group created: $SECURITY_GROUP_ID"
           aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0   # Allow SSH
           aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 8080 --cidr 0.0.0.0/0  # Allow HTTP (port 8080)
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 5432 --cidr 0.0.0.0/0  # Allow PostgreSQL connections
           INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --count 1 --instance-type t2.micro --key-name cloud --security-group-ids $SECURITY_GROUP_ID --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=cloud},{Key=Environment,Value=development}]' --query 'Instances[0].InstanceId' --output text)
           echo "::set-output name=instance_id::$INSTANCE_ID"
 
@@ -100,10 +99,26 @@ jobs:
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network || true"
 
-      - name: Deploy PostgreSQL container
+      - name: Check if PostgreSQL container is running
+        id: check_postgres
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker ps -q -f name=postgres-container"; then
+            echo "::set-output name=container_exists::true"
+          else
+            echo "::set-output name=container_exists::false"
+          fi
+
+      - name: Update or create PostgreSQL container
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          if [ "${{ steps.check_postgres.outputs.container_exists }}" == "true" ]; then
+            echo "Updating existing PostgreSQL container..."
+            ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker stop postgres-container && sudo docker rm postgres-container"
+          fi
+          echo "Creating PostgreSQL container..."
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
 
       - name: Wait for PostgreSQL to be ready
