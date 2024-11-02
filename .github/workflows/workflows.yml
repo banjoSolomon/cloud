@@ -86,14 +86,6 @@ jobs:
           echo "${{ secrets.EC2_KEY }}" > cloud.pem
           chmod 600 cloud.pem
 
-      - name: Debug EC2 instance
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text)
-          echo "Public IP: $PUBLIC_IP"
-          echo "Instance State: $INSTANCE_STATE"
-
       - name: Install Docker on EC2
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
@@ -122,12 +114,22 @@ jobs:
             ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
           fi
 
+      - name: Check PostgreSQL container logs
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          if [ -n "$CONTAINER_EXISTS" ]; then
+            ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker logs postgres-container"
+          else
+            echo "PostgreSQL container does not exist. No logs to show."
+          fi
+
       - name: Wait for PostgreSQL to be ready
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          for i in {1..30}; do
-            if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker exec postgres-container pg_isready -U user"; then
+          for i in {1..10}; do
+            if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "nc -z postgres-container 5432"; then
               echo "PostgreSQL is up!"
               break
             fi
