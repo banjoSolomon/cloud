@@ -112,6 +112,12 @@ jobs:
             ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
           fi
 
+      - name: Check PostgreSQL container logs
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker logs postgres-container"
+
       - name: Wait for PostgreSQL to be ready
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
@@ -134,3 +140,9 @@ jobs:
             ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker stop clouds-container && sudo docker rm clouds-container || true"
           fi
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
+
+      - name: Check application container logs
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker logs clouds-container"
