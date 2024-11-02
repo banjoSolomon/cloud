@@ -93,18 +93,30 @@ jobs:
           echo "Attempting SSH connection to $PUBLIC_IP"
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
-      - name: Create Docker network
+      - name: Create Docker network on EC2
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network || echo 'Network my-network already exists.'"
+          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network || true"
 
-      - name: Deploy PostgreSQL container (if first time)
-        if: steps.create_ec2.outputs.instance_id != ''
+      - name: Deploy PostgreSQL container
         run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id }}
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
+
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
+          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          for i in {1..10}; do
+            if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "nc -z postgres-container 5432"; then
+              echo "PostgreSQL is up!"
+              break
+            fi
+            echo "Waiting for PostgreSQL to be ready..."
+            sleep 5
+          done
 
       - name: Deploy updated application container
         run: |
