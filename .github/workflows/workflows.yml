@@ -35,10 +35,10 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker image
-        run: docker build -t solomon11/cloud:latest .
+        run: sudo docker build -t solomon11/cloud:latest .
 
       - name: Push Docker image to Docker Hub
-        run: docker push solomon11/cloud:latest
+        run: sudo docker push solomon11/cloud:latest
 
       - name: Configure AWS CLI
         uses: aws-actions/configure-aws-credentials@v1
@@ -108,7 +108,7 @@ jobs:
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
 
           # Check if PostgreSQL container exists
-          CONTAINER_EXISTS=$(ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker ps -a -q -f name=postgres-container")
+          CONTAINER_EXISTS=$(ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker ps -a -q -f name=postgres-container")
           
           if [ -n "$CONTAINER_EXISTS" ]; then
             echo "PostgreSQL container already exists."
@@ -144,7 +144,7 @@ jobs:
         run: |
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker ps -q -f name=clouds-container"; then
+          if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker ps -q -f name=clouds-container"; then
             echo "Updating existing clouds-container..."
             ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker stop clouds-container && sudo docker rm clouds-container || true"
           fi
@@ -155,9 +155,3 @@ jobs:
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker logs clouds-container"
-
-      - name: Cleanup
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker system prune -af"
