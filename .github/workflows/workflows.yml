@@ -96,7 +96,19 @@ jobs:
           INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
           PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           echo "Attempting SSH connection to $PUBLIC_IP"
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
+
+          # Wait until SSH port (22) is accessible
+          for i in {1..10}; do
+            if nc -zv $PUBLIC_IP 22; then
+              echo "SSH is available on $PUBLIC_IP."
+              break
+            fi
+            echo "Waiting for SSH connection on $PUBLIC_IP..."
+            sleep 10
+          done
+
+          # SSH into the instance and install Docker
+          ssh -v -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
 
       - name: Create Docker network on EC2
         run: |
@@ -128,7 +140,6 @@ jobs:
             echo "Waiting for PostgreSQL to be ready..."
             sleep 5
           done
-        
 
       - name: Deploy updated application container
         run: |
