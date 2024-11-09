@@ -68,8 +68,8 @@ jobs:
         id: create_ec2
         run: |
           # Create Security Group and get only the Security Group ID
-          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text)
-          echo "Security Group created: $SECURITY_GROUP_ID"
+          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --query 'GroupId' --output text)
+          echo "Security Group ID: $SECURITY_GROUP_ID"
           
           # Authorize security group ingress
           aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0   # Allow SSH
@@ -128,6 +128,7 @@ jobs:
             echo "Waiting for PostgreSQL to be ready..."
             sleep 5
           done
+        
 
       - name: Deploy updated application container
         run: |
