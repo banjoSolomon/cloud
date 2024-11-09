@@ -13,6 +13,7 @@ public class FibonacciController {
 
     @GetMapping("/fibonacci/{number}")
     public List<Long> getFibonacci(@PathVariable int number) {
+
         return generateFibonacci(number);
     }
     }
