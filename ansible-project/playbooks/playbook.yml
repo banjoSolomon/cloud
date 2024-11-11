@@ -2,9 +2,9 @@
 - name: Manage Docker Compose Services
   hosts: localhost
   become: true
-  gather_facts: no  # This skips fact gathering
+  gather_facts: no
   vars_files:
-    - volt.yml  # This should contain the vault secrets
+    - volt.yml
 
   tasks:
     - name: Render Docker Compose template
