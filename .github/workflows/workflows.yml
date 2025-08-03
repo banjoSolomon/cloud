@@ -1,4 +1,4 @@
-name: Deploy to Docker Hub and AWS EC2
+name: Backend Build Process
 
 on:
   push:
@@ -6,12 +6,19 @@ on:
       - in-dev
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Tag the commit
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git tag build-${{ github.run_number }}
+          git push origin build-${{ github.run_number }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v2
@@ -24,9 +31,12 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('/*.xml') }}
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+
+      - name: Compile the code (build with Maven)
+        run: mvn clean package -DskipTests=false
 
       - name: Run Unit Tests
         run: mvn test
@@ -37,119 +47,16 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
+      - name: Build Docker Image
         run: docker build -t solomon11/cloud:latest .
 
-      - name: Push Docker image to Docker Hub
-        run: docker push solomon11/cloud:latest
+      - name: Tag Docker Image
+        run: docker tag solomon11/cloud:latest solomon11/cloud:${{ github.sha }}
 
-      - name: Configure AWS CLI
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Check for existing EC2 instance
-        id: check_instance
+      - name: Push Docker Image to Docker Hub
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=cloud" --query 'Reservations[0].Instances[0].InstanceId' --output text)
-          if [ "$INSTANCE_ID" = "None" ]; then
-            echo "::set-output name=instance_exists::false"
-          else
-            INSTANCE_STATE=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].State.Name' --output text)
-            if [ "$INSTANCE_STATE" = "terminated" ]; then
-              echo "::set-output name=instance_exists::false"
-            else
-              echo "::set-output name=instance_exists::true"
-              echo "::set-output name=instance_id::$INSTANCE_ID"
-            fi
-          fi
+          docker push solomon11/cloud:latest
+          docker push solomon11/cloud:${{ github.sha }}
 
-      - name: Create EC2 instance (if not exists or terminated)
-        if: steps.check_instance.outputs.instance_exists == 'false'
-        id: create_ec2
-        run: |
-          # Create Security Group and get only the Security Group ID
-          SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name cloud-ss --description "Security group for cloud instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --query 'GroupId' --output text)
-          echo "Security Group ID: $SECURITY_GROUP_ID"
-
-          # Authorize security group ingress
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0   # Allow SSH
-          aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 8080 --cidr 0.0.0.0/0  # Allow HTTP (port 8080)
-
-          # Create EC2 instance
-          INSTANCE_ID=$(aws ec2 run-instances --image-id ami-0866a3c8686eaeeba --count 1 --instance-type t2.micro --key-name cloud --security-group-ids $SECURITY_GROUP_ID --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=cloud},{Key=Environment,Value=development}]' --query 'Instances[0].InstanceId' --output text)
-          echo "::set-output name=instance_id::$INSTANCE_ID"
-
-      - name: Wait for EC2 instance to be running
-        if: steps.create_ec2.outputs.instance_id != '' || steps.check_instance.outputs.instance_exists == 'true'
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          aws ec2 wait instance-running --instance-ids $INSTANCE_ID
-          echo "EC2 instance $INSTANCE_ID is now running."
-
-      - name: Create cloud.pem file
-        run: |
-          echo "${{ secrets.EC2_KEY }}" > cloud.pem
-          chmod 600 cloud.pem
-
-      - name: Install Docker on EC2
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          echo "Attempting SSH connection to $PUBLIC_IP"
-
-          # Wait until SSH port (22) is accessible
-          for i in {1..10}; do
-            if nc -zv $PUBLIC_IP 22; then
-              echo "SSH is available on $PUBLIC_IP."
-              break
-            fi
-            echo "Waiting for SSH connection on $PUBLIC_IP..."
-            sleep 10
-          done
-
-          # SSH into the instance and install Docker
-          ssh -v -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker && sudo systemctl enable docker"
-
-      - name: Create Docker network on EC2
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker network create my-network || true"
-
-      - name: Ensure PostgreSQL container exists
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          # Check if PostgreSQL container exists
-          if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker ps -a -q -f name=postgres-container"; then
-            echo "PostgreSQL container already exists."
-          else
-            echo "PostgreSQL container not found. Creating a new one..."
-            ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name postgres-container --network my-network -e POSTGRES_USER=user -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -e POSTGRES_DB=cloud_db -p 5432:5432 postgres"
-          fi
-
-      - name: Wait for PostgreSQL to be ready
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          for i in {1..10}; do
-            if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "nc -z postgres-container 5432"; then
-              echo "PostgreSQL is up!"
-              break
-            fi
-            echo "Waiting for PostgreSQL to be ready..."
-            sleep 5
-          done
-
-      - name: Deploy updated application container
-        run: |
-          INSTANCE_ID=${{ steps.create_ec2.outputs.instance_id || steps.check_instance.outputs.instance_id }}
-          PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
-          if ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "docker ps -q -f name=clouds-container"; then
-            echo "Updating existing clouds-container..."
-            ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker stop clouds-container && sudo docker rm clouds-container || true"
-          fi
-          ssh -o StrictHostKeyChecking=no -i cloud.pem ubuntu@$PUBLIC_IP "sudo docker run -d --name clouds-container --network my-network --memory 256m -e SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-container:5432/cloud_db -e SPRING_DATASOURCE_USERNAME=user -e SPRING_DATASOURCE_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} -p 8080:8080 solomon11/cloud:latest"
+      - name: Send Build Notification
+        run: echo "✅ Build and Docker push completed for commit ${{ github.sha }} and tag build-${{ github.run_number }}"
