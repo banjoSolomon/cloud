@@ -64,6 +64,3 @@ jobs:
         run: |
           docker push solomon11/cloud:latest
           docker push solomon11/cloud:${{ github.sha }}
-
-      - name: Notify build success
-        run: echo "✅ Build and Docker push complete. Tag: build-${{ github.run_number }}"
