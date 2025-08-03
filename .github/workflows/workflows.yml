@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write      # For pushing git tags
   packages: write      # For Docker Hub login
-  id-token: write      # For certain auth workflows (optional but good practice)
+  id-token: write
 
 jobs:
   build-and-push:
@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: ☕ Set up JDK 17
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           distribution: temurin
           java-version: 17
@@ -30,23 +30,18 @@ jobs:
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
 
-      - name: 🏷️ Create and push tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git tag build-${{ github.run_number }}
-          git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }} build-${{ github.run_number }}
-
-      - name: 💾 Restore Maven cache
+      - name: 💾 Cache Maven packages
         uses: actions/cache@v3
         with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          path: |
+            ~/.m2/repository
+            target
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-            ${{ runner.os }}-maven-
+            maven-${{ runner.os }}-
 
-      - name:  Build project with Maven
-        run: mvn clean package -DskipTests=false
+      - name: 🏗️ Build project with Maven
+        run: mvn clean install -DskipTests=false
 
       - name: ✅ Run unit tests
         run: mvn test
@@ -67,3 +62,10 @@ jobs:
         run: |
           docker push solomon11/cloud:latest
           docker push solomon11/cloud:${{ github.sha }}
+
+      - name: 🏷️ Create and push tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag build-${{ github.run_number }}
+          git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }} build-${{ github.run_number }}
